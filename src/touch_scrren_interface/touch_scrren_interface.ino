@@ -17,8 +17,8 @@
 #define D_A0 8    //Demux A0 pin 
 #define D_A1 9    //Demux A1 pin
 #define D_A2 10    //Demux A2 pin
-#define SENS_PER_H_BANK 5
-#define SENS_PER_V_BANK 7
+#define SENS_PER_H_BANK 8
+#define SENS_PER_V_BANK 8
 
 #define SEN_DELAY 1
 #define SEN_THRESH 3000
@@ -39,6 +39,7 @@ const int RX4 = A4;
 const int RX5 = A5;
 const int RX6 = A6;
 const int RX7 = A7; // Pin 21
+const int ledPin = 13;
 
 int rx_pins[] = {RX0, RX1, RX2, RX3, RX4, RX5, RX6, RX7};
 
@@ -57,7 +58,7 @@ bool horiz = true;
 bool vert = false;
 bool init = true;
 bool debug = false;
-bool debug_min = true;
+bool debug_min = false;
 bool hit = false;
 
 ADC *adc = new ADC(); // adc object;
@@ -71,7 +72,7 @@ void setup() {
     pinMode(D_A0, OUTPUT);
     pinMode(D_A1, OUTPUT);
     pinMode(D_A2, OUTPUT);
-    
+    pinMode(ledPin, OUTPUT);
     pinMode(H_SIG_SOURCE, OUTPUT);
     pinMode(V_SIG_SOURCE, OUTPUT);
     pinMode(H_SIG_RET, INPUT_PULLDOWN);
@@ -96,8 +97,9 @@ void setup() {
 
 
     
-    Serial.begin(9600);
+    //Serial.begin(9600);
     if (debug){
+      Serial.begin(9600);
       Serial.println("Begin setup");
     }
 
@@ -172,8 +174,14 @@ void init_count_banks(){
   bool source_on = true;
   while (horiz){
     h_bank_count += 1; 
+    if (debug){
+      Serial.println(h_bank_count);
+    }
     clk_pulse();
     if (source_on){
+      if (debug){
+        delay(5000);
+      }
       digitalWrite(H_SIG_SOURCE, LOW);
       source_on = false;
     }
@@ -213,7 +221,7 @@ void ring_loop(int *h_vals, int *v_vals, bool init){
     digitalWrite(H_SIG_SOURCE, LOW);
 
     for (int i = 0; i < SENS_PER_H_BANK; i++){
-      adc_val = read_sensor_pair(i);
+      adc_val = read_sensor_pair(7-i);
       if (debug){
         Serial.println(adc_val);
       }
@@ -247,7 +255,7 @@ void ring_loop(int *h_vals, int *v_vals, bool init){
     digitalWrite(V_SIG_SOURCE, LOW);
 
     for (int i = 0; i < SENS_PER_V_BANK; i++){
-      adc_val = read_sensor_pair(i);
+      adc_val = read_sensor_pair(7-i);
       if (debug){
         Serial.println(adc_val);
       }
@@ -347,7 +355,7 @@ float get_position(int count, int *values){
 
 
 void loop() {
-  
+    digitalWrite(ledPin, HIGH);
     //Init and calibration code on first run
     if (init){
       delay(5000);
@@ -376,7 +384,7 @@ void loop() {
       }
 
     ring_loop(h_vals, v_vals, init);
-   
+    digitalWrite(ledPin, LOW);
     if (debug | debug_min){
       Serial.print("H Values: ");
       for(int n = 0; n < h_count;n++){
@@ -427,32 +435,37 @@ void loop() {
       }
 
       //Mode values down the line
-      for (int i=2;i>0;i--){
-        h_filter[i]=h_filter[i-1];
-      }
-      h_filter[0] = h_pos;
+//      for (int i=2;i>0;i--){
+//        h_filter[i]=h_filter[i-1];
+//      }
+//      h_filter[0] = h_pos;
 
       //Take weighted average
-      float h_w_avg = (h_filter[2] + 3 * h_filter[1] + h_filter [0]) / 5;
-
+      //float h_w_avg = (h_filter[2] + 3 * h_filter[1] + h_filter [0]) / 5;
+      
       //Repeat for vertical... Not enough code to justify making a function
-      for (int i=2;i>0;i--){
-        v_filter[i]=v_filter[i-1];
-      }
-      v_filter[0] = v_pos;
-      float v_w_avg = (v_filter[2] + 3 * v_filter[1] + v_filter [0]) / 5;
+//      for (int i=2;i>0;i--){
+//        v_filter[i]=v_filter[i-1];
+//      }
+//      v_filter[0] = v_pos;
+//      float v_w_avg = (v_filter[2] + 3 * v_filter[1] + v_filter [0]) / 5;
 
       
-      float h_percentage = h_w_avg/((float)(h_count - 1));
-      float v_percentage = v_w_avg/((float)(v_count - 1));
-      
-      int h = H_SCREEN_RES - (int)(h_percentage * H_SCREEN_RES);
-      int v = (int)(v_percentage * V_SCREEN_RES);
-      
+//      float h_percentage = h_w_avg/((float)(h_count - 1));
+//      float v_percentage = v_w_avg/((float)(v_count - 1));
+      float h_percentage = h_pos/((float)(h_count - 1));
+      float v_percentage = v_pos/((float)(v_count - 1));
+      //Rx on top
+      //int h = H_SCREEN_RES - (int)(h_percentage * H_SCREEN_RES);
+      //int v = (int)(v_percentage * V_SCREEN_RES);
+
+      //Rx on Bottom
+      int h = (int)(h_percentage * H_SCREEN_RES);
+      int v = V_SCREEN_RES -(int)(v_percentage * V_SCREEN_RES);
       
       Mouse.moveTo(h,v);
       Mouse.press(MOUSE_LEFT);
-      if (debug){
+      if (debug_min){
         Serial.print(h);
         Serial.print(" ");
         Serial.println(v);
